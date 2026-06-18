@@ -1,12 +1,30 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
+// 1. Pastikan import useRouter berasal dari 'next/navigation' (bukan 'next/router')
+import { useRouter } from 'next/navigation'; 
 
 export default function DashboardUpload() {
+  const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [fileUrl, setFileUrl] = useState('');
   const [status, setStatus] = useState('');
+  const [checkingAuth, setCheckingAuth] = useState(true); // Untuk mencegah "flicker" UI
+
+  // 🔒 Pengecekan Login
+  useEffect(() => {
+    // Ambil data status login (sesuaikan nama 'isLoggedIn' dengan yang kamu pakai di halaman login)
+    const isUserLoggedIn = localStorage.getItem('isLoggedIn'); 
+    
+    if (!isUserLoggedIn) {
+      // Jika tidak ada data login, langsung pindahkan ke halaman login
+      router.push('/login'); 
+    } else {
+      // Jika ada, matikan loading pengecekan
+      setCheckingAuth(false);
+    }
+  }, [router]);
 
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,7 +39,6 @@ export default function DashboardUpload() {
     setStatus('Sedang mengunggah ke server cloud Vercel...');
 
     try {
-      // Mengirimkan file biner langsung ke API route kita
       const response = await fetch(`/api/upload?filename=${file.name}`, {
         method: 'POST',
         body: file,
@@ -31,7 +48,7 @@ export default function DashboardUpload() {
 
       if (response.ok && newBlob.success) {
         setStatus('🎉 Hore! File berhasil diunggah.');
-        setFileUrl(newBlob.url); // Simpan URL file agar bisa ditampilkan
+        setFileUrl(newBlob.url);
       } else {
         setStatus('❌ Gagal mengunggah file.');
       }
@@ -42,6 +59,11 @@ export default function DashboardUpload() {
       setUploading(false);
     }
   };
+
+  // Jika masih proses mengecek status login, tampilkan loading kosong agar halaman dashboard tidak mengintip
+  if (checkingAuth) {
+    return <div className="p-6 text-center text-sm text-gray-500">Memeriksa autentikasi...</div>;
+  }
 
   return (
     <div className="p-6 max-w-md mx-auto bg-white rounded-2xl shadow-md border border-gray-100 my-10">
