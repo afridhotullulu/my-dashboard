@@ -1,42 +1,36 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-// 1. Pastikan import useRouter berasal dari 'next/navigation' (bukan 'next/router')
-import { useRouter } from 'next/navigation'; 
+import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react'; // 🌟 Menggunakan session bawaan NextAuth
 
 export default function DashboardUpload() {
   const router = useRouter();
+  const { data: session, status } = useSession(); // 🌟 Ambil data user & status login Google
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [fileUrl, setFileUrl] = useState('');
-  const [status, setStatus] = useState('');
-  const [checkingAuth, setCheckingAuth] = useState(true); // Untuk mencegah "flicker" UI
+  const [uploadStatus, setUploadStatus] = useState('');
 
-  // 🔒 Pengecekan Login
+  // 🔒 SATPAM: Cek Akun Google Otomatis
   useEffect(() => {
-    // Ambil data status login (sesuaikan nama 'isLoggedIn' dengan yang kamu pakai di halaman login)
-    const isUserLoggedIn = localStorage.getItem('isLoggedIn'); 
-    
-    if (!isUserLoggedIn) {
-      // Jika tidak ada data login, langsung pindahkan ke halaman login
-      router.push('/login'); 
-    } else {
-      // Jika ada, matikan loading pengecekan
-      setCheckingAuth(false);
+    if (status === 'unauthenticated') {
+      // Jika terbukti TIDAK login Google, tendang ke halaman login
+      router.push('/login');
     }
-  }, [router]);
+  }, [status, router]);
 
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
-
     if (!fileInputRef.current?.files?.[0]) {
-      setStatus('Silakan pilih file terlebih dahulu.');
+      setUploadStatus('Silakan pilih file terlebih dahulu.');
       return;
     }
 
     const file = fileInputRef.current.files[0];
     setUploading(true);
-    setStatus('Sedang mengunggah ke server cloud Vercel...');
+    setUploadStatus('Sedang mengunggah ke server cloud Vercel...');
 
     try {
       const response = await fetch(`/api/upload?filename=${file.name}`, {
@@ -47,26 +41,40 @@ export default function DashboardUpload() {
       const newBlob = await response.json();
 
       if (response.ok && newBlob.success) {
-        setStatus('🎉 Hore! File berhasil diunggah.');
+        setUploadStatus('🎉 Hore! File berhasil diunggah.');
         setFileUrl(newBlob.url);
       } else {
-        setStatus('❌ Gagal mengunggah file.');
+        setUploadStatus('❌ Gagal mengunggah file.');
       }
     } catch (error) {
-      setStatus('❌ Terjadi kesalahan jaringan.');
+      setUploadStatus('❌ Terjadi kesalahan jaringan.');
       console.error(error);
     } finally {
       setUploading(false);
     }
   };
 
-  // Jika masih proses mengecek status login, tampilkan loading kosong agar halaman dashboard tidak mengintip
-  if (checkingAuth) {
-    return <div className="p-6 text-center text-sm text-gray-500">Memeriksa autentikasi...</div>;
+  // Jika sedang loading mengecek akun Google, tampilkan loading agar dashboard tidak mengintip
+  if (status === 'loading') {
+    return <div className="p-6 text-center text-sm text-gray-500">Memeriksa akun Google...</div>;
   }
 
+  // Jika aman dan user sudah login, tampilkan fitur upload & profil
   return (
     <div className="p-6 max-w-md mx-auto bg-white rounded-2xl shadow-md border border-gray-100 my-10">
+      {/* 👤 MENAMPILKAN PROFIL USER GOOGLE */}
+      {session?.user && (
+        <div className="flex items-center gap-3 mb-6 p-3 bg-blue-50 rounded-xl">
+          {session.user.image && (
+            <img src={session.user.image} alt="Foto Profil" className="w-10 h-10 rounded-full" />
+          )}
+          <div>
+            <p className="text-xs text-gray-500">Selamat datang,</p>
+            <p className="text-sm font-bold text-gray-800">{session.user.name}</p>
+          </div>
+        </div>
+      )}
+
       <h2 className="text-xl font-bold mb-2 text-gray-800">Upload File Ke Cloud Dashboard</h2>
       <p className="text-xs text-gray-500 mb-6">File akan disimpan secara permanen di server Vercel Blob.</p>
       
@@ -86,9 +94,9 @@ export default function DashboardUpload() {
         </button>
       </form>
 
-      {status && (
-        <p className={`mt-4 p-3 text-xs text-center rounded-lg font-medium ${status.includes('🎉') ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
-          {status}
+      {uploadStatus && (
+        <p className={`mt-4 p-3 text-xs text-center rounded-lg font-medium ${uploadStatus.includes('🎉') ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
+          {uploadStatus}
         </p>
       )}
 
